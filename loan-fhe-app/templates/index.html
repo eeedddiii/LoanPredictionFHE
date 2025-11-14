@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>대출 연체 가능성 예측 (평문 vs FHE)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 16px;
+        }
+        h1 { margin-bottom: 8px; }
+        .subtitle {
+            color: #555;
+            margin-bottom: 24px;
+        }
+        form {
+            border: 1px solid #ddd;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+        }
+        .field-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px 24px;
+            margin-bottom: 16px;
+        }
+        label {
+            display: flex;
+            flex-direction: column;
+            font-size: 0.9rem;
+        }
+        input, select {
+            padding: 6px 8px;
+            font-size: 0.9rem;
+            margin-top: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            font-size: 0.95rem;
+            border-radius: 6px;
+            border: none;
+            background-color: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover { background-color: #1d4ed8; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px 10px;
+            text-align: center;
+        }
+        th { background-color: #f3f4f6; }
+
+        .label-ok { color: #16a34a; font-weight: 600; }
+        .label-risk { color: #b91c1c; font-weight: 600; }
+
+        .note {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+
+        .summary-box {
+            border-left: 4px solid #059669;
+            background-color: #ecfdf5;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+<h1>대출 연체 가능성 예측</h1>
+<div class="subtitle">
+    동일한 Logistic Regression 파라미터를 사용하여<br>
+    평문 환경(Plain)과 동형암호(CKKS) 환경에서 각각 추론한 결과를 비교합니다.
+</div>
+
+<form method="post" action="/web_predict">
+    <h2>입력 정보</h2>
+
+    <div class="field-group">
+
+        <!-- 수치형: placeholder → ex) ... -->
+        <label>나이 (Age, 세)
+            <input type="number" step="1" name="Age" placeholder="ex) 35" required>
+        </label>
+
+        <label>연소득 (Income, 달러 기준)
+            <input type="number" step="1" name="Income" placeholder="ex) 50000" required>
+        </label>
+
+        <label>대출 금액 (Loan Amount)
+            <input type="number" step="1" name="LoanAmount" placeholder="ex) 15000" required>
+        </label>
+
+        <label>신용 점수 (Credit Score)
+            <input type="number" step="1" name="CreditScore" placeholder="ex) 720" required>
+            <span class="note">※ 일반적인 신용점수 범위: 300~850</span>
+        </label>
+
+        <label>근속 개월수 (Months Employed)
+            <input type="number" step="1" name="MonthsEmployed" placeholder="ex) 60" required>
+        </label>
+
+        <label>신용 계좌 수 (Num Credit Lines)
+            <input type="number" step="1" name="NumCreditLines" placeholder="ex) 5" required>
+        </label>
+
+        <label>이자율 (Interest Rate, %)
+            <input type="number" step="0.01" name="InterestRate" placeholder="ex) 5.5" required>
+        </label>
+
+        <label>대출 기간 (Loan Term, 개월)
+            <input type="number" step="1" name="LoanTerm" placeholder="ex) 36" required>
+        </label>
+
+        <label>DTI 비율 (Debt-to-Income Ratio)
+            <input type="number" step="0.01" name="DTIRatio" placeholder="ex) 0.30" required>
+        </label>
+
+
+        <!-- 범주형 select (그대로) -->
+        <label>교육 수준 (Education)
+            <select name="Education" required>
+                <option value="0">학사 (0)</option>
+                <option value="1">고등학교 (1)</option>
+                <option value="2">석사 (2)</option>
+                <option value="3">박사 (3)</option>
+            </select>
+        </label>
+
+        <label>고용 형태 (Employment Type)
+            <select name="EmploymentType" required>
+                <option value="0">정규직 (0)</option>
+                <option value="1">파트타임 (1)</option>
+                <option value="2">자영업 (2)</option>
+                <option value="3">무직 (3)</option>
+            </select>
+        </label>
+
+        <label>결혼 상태 (Marital Status)
+            <select name="MaritalStatus" required>
+                <option value="0">이혼 (0)</option>
+                <option value="1">기혼 (1)</option>
+                <option value="2">미혼 (2)</option>
+            </select>
+        </label>
+
+        <label>주택담보대출 보유 여부 (Has Mortgage)
+            <select name="HasMortgage" required>
+                <option value="0">없음 (0)</option>
+                <option value="1">있음 (1)</option>
+            </select>
+        </label>
+
+        <label>부양가족 여부 (Has Dependents)
+            <select name="HasDependents" required>
+                <option value="0">없음 (0)</option>
+                <option value="1">있음 (1)</option>
+            </select>
+        </label>
+
+        <label>대출 목적 (Loan Purpose)
+            <select name="LoanPurpose" required>
+                <option value="0">자동차 (0)</option>
+                <option value="1">사업 (1)</option>
+                <option value="2">교육 (2)</option>
+                <option value="3">주택 (3)</option>
+                <option value="4">기타 (4)</option>
+            </select>
+        </label>
+
+        <label>연대보증인 여부 (Has Co-Signer)
+            <select name="HasCoSigner" required>
+                <option value="0">없음 (0)</option>
+                <option value="1">있음 (1)</option>
+            </select>
+        </label>
+
+    </div>
+
+    <button type="submit">예측 실행 (평문 + FHE)</button>
+</form>
+
+{% if result %}
+
+<!-- 🔥 입력 요약 표시 -->
+<div class="summary-box">
+    <strong>입력 정보 요약</strong><br>
+    나이 {{ result.inputs.Age }}세,
+    연소득 ${{ result.inputs.Income }},
+    대출금액 ${{ result.inputs.LoanAmount }},
+    신용점수 {{ result.inputs.CreditScore }},
+    근속개월수 {{ result.inputs.MonthsEmployed }},
+    신용계좌수 {{ result.inputs.NumCreditLines }},
+    이자율 {{ result.inputs.InterestRate }}%,
+    대출기간 {{ result.inputs.LoanTerm }}개월,
+    DTI 비율 {{ result.inputs.DTIRatio }}<br>
+    교육: {{ result.inputs.Education }},
+    고용형태: {{ result.inputs.EmploymentType }},
+    결혼상태: {{ result.inputs.MaritalStatus }},
+    주택담보대출: {{ result.inputs.HasMortgage }},
+    부양가족: {{ result.inputs.HasDependents }},
+    대출목적: {{ result.inputs.LoanPurpose }},
+    연대보증인: {{ result.inputs.HasCoSigner }}
+</div>
+
+<h2>예측 결과</h2>
+
+<table>
+    <thead>
+        <tr>
+            <th>모델 유형</th>
+            <th>연체 확률</th>
+            <th>판별 결과</th>
+            <th>추론 시간 (초)</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>평문 Logistic</td>
+            <td>{{ "%.6f"|format(result.plain_prob) }}</td>
+            <td>
+                {% if result.plain_label == 1 %}
+                    <span class="label-risk">1 (연체)</span>
+                {% else %}
+                    <span class="label-ok">0 (정상)</span>
+                {% endif %}
+            </td>
+            <td>{{ "%.6f"|format(result.plain_time) }}</td>
+        </tr>
+        <tr>
+            <td>FHE(CKKS) Logistic</td>
+            <td>{{ "%.6f"|format(result.fhe_prob) }}</td>
+            <td>
+                {% if result.fhe_label == 1 %}
+                    <span class="label-risk">1 (연체)</span>
+                {% else %}
+                    <span class="label-ok">0 (정상)</span>
+                {% endif %}
+            </td>
+            <td>{{ "%.6f"|format(result.fhe_time) }}</td>
+        </tr>
+    </tbody>
+</table>
+
+{% endif %}
+
+</body>
+</html>
